@@ -2,9 +2,7 @@ import grpc
 from concurrent import futures
 import numpy as np
 from asyncio import CancelledError
-
 import platform
-
 from . import node_service_pb2
 from . import node_service_pb2_grpc
 from exo import DEBUG
@@ -19,11 +17,11 @@ else:
 
 class GRPCServer(node_service_pb2_grpc.NodeServiceServicer):
     def __init__(self, node: Node, host: str, port: int):
-        node = Node()  # Replace with your actual Node instance
-        host = "0.0.0.0"  # Bind to all available network interfaces
-        port = 50051  # Choose an appropriate port number
-        server = GRPCServer(node, host, port)
-  
+        self.node = node
+        self.host = host
+        self.port = port
+        self.server = None
+    
     async def start(self) -> None:
         self.server = grpc.aio.server(
             futures.ThreadPoolExecutor(max_workers=32),
@@ -44,10 +42,13 @@ class GRPCServer(node_service_pb2_grpc.NodeServiceServicer):
             ],
         )
         node_service_pb2_grpc.add_NodeServiceServicer_to_server(self, self.server)
+        
         listen_addr = f"{self.host}:{self.port}"
-        self.server.add_insecure_port(listen_addr)  # Change this line       
+        self.server.add_insecure_port(listen_addr)  # Change this line
+        
         await self.server.start()
-        if DEBUG >= 1: print(f"Server started, listening on {listen_addr}")
+        if DEBUG >= 1: 
+            print(f"Server started, listening on {listen_addr}")
     
     async def stop(self) -> None:
         if self.server:
@@ -169,3 +170,19 @@ class GRPCServer(node_service_pb2_grpc.NodeServiceServicer):
             other_data = json.loads(inference_state_proto.other_data_json)
             inference_state.update(other_data)
         return inference_state
+
+# Example usage
+if __name__ == "__main__":
+    import asyncio
+    
+    node = Node()  # Replace with your actual Node instance
+    host = "0.0.0.0"  # Bind to all available network interfaces
+    port = 50051  # Choose an appropriate port number
+    
+    server = GRPCServer(node, host, port)
+    
+    try:
+        asyncio.run(server.start())
+    except KeyboardInterrupt:
+        print("Server is shutting down.")
+        asyncio.run(server.stop())
